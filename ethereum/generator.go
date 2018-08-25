@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -31,7 +32,16 @@ func InitializeEthereumGenerator(searchPrefix string, runTimeInSeconds int64) *E
 
 // Run is used to execute our ethereum address generation service
 func (eg *EthereumGenerator) Run(c *gin.Context) {
+	count := 0
+	prevCount := count
+	go func() {
+		time.Sleep(time.Second * 5)
+		newCount := count
+		countDifference := newCount - prevCount
+		fmt.Println("guesses per second ", countDifference/5)
+	}()
 	for {
+		count++
 		acct, err := eg.CreateAccount()
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -44,8 +54,9 @@ func (eg *EthereumGenerator) Run(c *gin.Context) {
 			encodedKey := fmt.Sprintf("0x%s", hex.EncodeToString(crypto.FromECDSA(acct.PrivateKey)))
 			address := acct.Address.String()
 			c.JSON(http.StatusOK, gin.H{
-				"private_key": encodedKey,
-				"address":     address,
+				"private_key":    encodedKey,
+				"address":        address,
+				"total_attempts": count,
 			})
 			return
 		}
@@ -69,10 +80,7 @@ func (eg *EthereumGenerator) CreateAccount() (*Account, error) {
 func (eg *EthereumGenerator) Match(acct *Account) bool {
 	charactersToMatch := len(eg.SearchPrefix)
 	trimmedAddress := strings.TrimPrefix(acct.Address.String(), "0x")
-	fmt.Println(trimmedAddress)
-	fmt.Println("search prefix", eg.SearchPrefix)
 	partToMatch := trimmedAddress[0:charactersToMatch]
-	fmt.Println("part to match", partToMatch)
 	if partToMatch == eg.SearchPrefix {
 		return true
 	}
