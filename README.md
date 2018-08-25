@@ -1,2 +1,3 @@
 # VaaS
-Vanity-As-A-Service, Secure Vanity Address As A Service Generation [WIP]
+
+VaaS (Vanity As A Service) is an experimental SaaS product, offering secure Vanity Address generation leveraging RTrade's extensive computing power.
