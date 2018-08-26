@@ -45,7 +45,6 @@ func (a *LeaderActor) Act(c context.Context) {
 				existing[peer.Name()] = true
 				start := grid.NewActorStart("worker-%d", len(existing))
 				start.Type = "worker"
-
 				// for new peers start the worker
 				_, err := a.client.Request(timeout, peer.Name(), start)
 				if err != nil {
@@ -58,24 +57,61 @@ func (a *LeaderActor) Act(c context.Context) {
 
 // WorkerActor is started by our leader
 type WorkerActor struct {
-	EG *ethereum.EthereumGenerator
+	EG     *ethereum.EthereumGenerator
+	server *grid.Server
+}
+
+type GenerationRequest struct {
+	SearchPrefix     string `json:"search_prefix"`
+	RunTimeInSeconds int64  `json:"run_time_in_seconds,omitempty"`
+}
+
+type GenerationResponse struct {
+	Key     string `json:"key"`
+	Address string `json:"address"`
 }
 
 func (a *WorkerActor) Act(ctx context.Context) {
-	err := a.EG.Run()
+	name, err := grid.ContextActorName(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("starting worker ", name)
+	mailbox, err := grid.NewMailbox(a.server, name, 10)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer mailbox.Close()
+	fmt.Println("waiting for messages")
 	for {
 		select {
 		case <-ctx.Done():
 			fmt.Println("good bye")
 			return
+		case req, ok := <-mailbox.C:
+			if !ok {
+				fmt.Println("erorr retrieving message from mailbox")
+				return
+			}
+			switch req.Msg().(type) {
+			case *GenerationRequest:
+				fmt.Printf("msg %+v\n", req.Msg())
+				err = req.Respond(&GenerationResponse{Key: "key", Address: "address"})
+				if err != nil {
+					fmt.Println("failed to send response ", err)
+				}
+			default:
+				fmt.Printf("ERROR: wrong type %#v\n", req.Msg())
+			}
 		}
 	}
 }
 
-func InitializeDistributor(address, searchPrefix string) error {
+func InitializeDistributor(address string) error {
+
+	grid.Register(GenerationRequest{})
+	grid.Register(GenerationResponse{})
+
 	etcd, err := etcdv3.New(
 		etcdv3.Config{Endpoints: []string{"localhost:2379"}},
 	)
@@ -96,16 +132,12 @@ func InitializeDistributor(address, searchPrefix string) error {
 	if err != nil {
 		return err
 	}
-
 	server.RegisterDef("leader", func(_ []byte) (grid.Actor, error) {
 		return &LeaderActor{client: client}, nil
 	})
 
 	server.RegisterDef("worker", func(_ []byte) (grid.Actor, error) {
-		eg := ethereum.InitializeEthereumGenerator(searchPrefix, 10000000000)
-		return &WorkerActor{
-			EG: eg,
-		}, nil
+		return &WorkerActor{server: server}, nil
 	})
 
 	go func() {
@@ -117,6 +149,8 @@ func InitializeDistributor(address, searchPrefix string) error {
 		fmt.Println("shutdown complete")
 	}()
 
+	api := InitializeAPI(client)
+	go api.Router.Run("127.0.0.1:6767")
 	listen, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
