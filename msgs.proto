@@ -1,0 +1,11 @@
+syntax = "proto3";
+package main;
+
+message GenerationRequest {
+    string searchPrefix = 1;
+}
+
+message GenerationResponse {
+    string key = 1;
+    string address = 2;
+}

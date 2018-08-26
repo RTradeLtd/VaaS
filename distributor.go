@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -61,16 +62,6 @@ type WorkerActor struct {
 	server *grid.Server
 }
 
-type GenerationRequest struct {
-	SearchPrefix     string `json:"search_prefix"`
-	RunTimeInSeconds int64  `json:"run_time_in_seconds,omitempty"`
-}
-
-type GenerationResponse struct {
-	Key     string `json:"key"`
-	Address string `json:"address"`
-}
-
 func (a *WorkerActor) Act(ctx context.Context) {
 	name, err := grid.ContextActorName(ctx)
 	if err != nil {
@@ -93,10 +84,15 @@ func (a *WorkerActor) Act(ctx context.Context) {
 				fmt.Println("erorr retrieving message from mailbox")
 				return
 			}
-			switch req.Msg().(type) {
+			switch i := req.Msg().(type) {
 			case *GenerationRequest:
-				fmt.Printf("msg %+v\n", req.Msg())
-				err = req.Respond(&GenerationResponse{Key: "key", Address: "address"})
+				eg := ethereum.InitializeEthereumGenerator(i.SearchPrefix, 10000000)
+				suc, err := eg.Run()
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+				err = req.Respond(&GenerationResponse{Key: suc.Key, Address: suc.Address})
 				if err != nil {
 					fmt.Println("failed to send response ", err)
 				}
@@ -149,12 +145,40 @@ func InitializeDistributor(address string) error {
 		fmt.Println("shutdown complete")
 	}()
 
-	api := InitializeAPI(client)
-	go api.Router.Run("127.0.0.1:6767")
+	api := GenerateAPI(client)
+	go api.Run("127.0.0.1:6767")
 	listen, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
 
 	return server.Serve(listen)
+}
+
+type GAPI struct {
+	c *grid.Client
+}
+
+func GenerateAPI(client *grid.Client) *GAPI {
+	a := &GAPI{c: client}
+	return a
+}
+
+func (a *GAPI) Run(address string) {
+	http.HandleFunc("/api/v1/ethereum/generate/distributed", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("handling worker")
+
+		req, err := a.c.Request(timeout, "worker-1", &GenerationRequest{SearchPrefix: "DD"})
+		fmt.Printf("request worker:%q\nresponse: %#v\nerr%v\n", "worker-1", req, err)
+		if resp, ok := req.(*GenerationResponse); ok {
+			fmt.Fprintf(w, "Address %s\nKey %s\n", resp.Address, resp.Key)
+		} else {
+			fmt.Fprintf(w, "wrong resposne type")
+		}
+	})
+
+	err := http.ListenAndServe(address, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 }

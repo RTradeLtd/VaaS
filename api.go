@@ -66,8 +66,7 @@ func (api *API) GenerateEthereumKeysDistributedly(c *gin.Context) {
 	}
 
 	genReq := &GenerationRequest{
-		SearchPrefix:     searchPrefix,
-		RunTimeInSeconds: 10000,
+		SearchPrefix: searchPrefix,
 	}
 
 	resp, err := api.Client.Request(time.Second*2, worker, genReq)
@@ -78,10 +77,9 @@ func (api *API) GenerateEthereumKeysDistributedly(c *gin.Context) {
 			"address": fmt.Sprintf("Address %s", gr.Address),
 		})
 		return
-	} else {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "wrong resposne type",
-		})
-		return
 	}
+	c.JSON(http.StatusBadRequest, gin.H{
+		"error": "wrong resposne type",
+	})
+	return
 }

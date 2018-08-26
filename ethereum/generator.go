@@ -23,6 +23,12 @@ type Account struct {
 	Address    common.Address
 }
 
+type Success struct {
+	Address       string
+	Key           string
+	TotalAttempts int64
+}
+
 // InitializeEthereumGenerator is used to initialize our ethereum address generation service
 func InitializeEthereumGenerator(searchPrefix string, runTimeInSeconds int64) *EthereumGenerator {
 	return &EthereumGenerator{
@@ -31,7 +37,7 @@ func InitializeEthereumGenerator(searchPrefix string, runTimeInSeconds int64) *E
 }
 
 // Run is used to execute our ethereum address generation service when called from our distributor
-func (eg *EthereumGenerator) Run() error {
+func (eg *EthereumGenerator) Run() (*Success, error) {
 	count := 0
 	prevCount := count
 	go func() {
@@ -44,16 +50,18 @@ func (eg *EthereumGenerator) Run() error {
 		count++
 		acct, err := eg.CreateAccount()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		matched := eg.Match(acct)
 		if matched {
 			encodedKey := fmt.Sprintf("0x%s", hex.EncodeToString(crypto.FromECDSA(acct.PrivateKey)))
 			address := acct.Address.String()
-			fmt.Printf("private_key\t%s\n", encodedKey)
-			fmt.Printf("address\t%s\n", address)
-			fmt.Printf("total_attempts\t%v\n", count)
-			return nil
+			suc := &Success{
+				Address:       address,
+				Key:           encodedKey,
+				TotalAttempts: int64(count),
+			}
+			return suc, nil
 		}
 	}
 }
