@@ -45,5 +45,5 @@ func (api *API) GenerateEthereumKeys(c *gin.Context) {
 		}
 	}
 	eg := ethereum.InitializeEthereumGenerator(searchPrefix, runTime)
-	eg.Run(c)
+	eg.RunAPI(c)
 }

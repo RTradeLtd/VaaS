@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/RTradeLtd/VaaS/ethereum"
 	etcdv3 "github.com/coreos/etcd/clientv3"
 	"github.com/lytics/grid"
 )
@@ -56,10 +57,15 @@ func (a *LeaderActor) Act(c context.Context) {
 }
 
 // WorkerActor is started by our leader
-type WorkerActor struct{}
+type WorkerActor struct {
+	EG *ethereum.EthereumGenerator
+}
 
 func (a *WorkerActor) Act(ctx context.Context) {
-	fmt.Println("Hello World")
+	err := a.EG.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -69,7 +75,7 @@ func (a *WorkerActor) Act(ctx context.Context) {
 	}
 }
 
-func InitializeDistributor(address string) error {
+func InitializeDistributor(address, searchPrefix string) error {
 	etcd, err := etcdv3.New(
 		etcdv3.Config{Endpoints: []string{"localhost:2379"}},
 	)
@@ -96,7 +102,10 @@ func InitializeDistributor(address string) error {
 	})
 
 	server.RegisterDef("worker", func(_ []byte) (grid.Actor, error) {
-		return &WorkerActor{}, nil
+		eg := ethereum.InitializeEthereumGenerator(searchPrefix, 10000000000)
+		return &WorkerActor{
+			EG: eg,
+		}, nil
 	})
 
 	go func() {
