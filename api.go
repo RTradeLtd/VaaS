@@ -12,7 +12,7 @@ import (
 )
 
 type API struct {
-	Client *grid.Client
+	client *grid.Client
 	Router *gin.Engine
 }
 
@@ -23,6 +23,7 @@ func InitializeAPI(gc *grid.Client) *API {
 	api.Router = router
 	api.Router.POST("/api/v1/ethereum/generate/locally", api.GenerateEthereumKeysLocally)
 	if gc != nil {
+		api.client = gc
 		api.Router.POST("/api/v1/ethereum/generate/distributed/:worker", api.GenerateEthereumKeysDistributedly)
 	}
 	return &api
@@ -69,7 +70,7 @@ func (api *API) GenerateEthereumKeysDistributedly(c *gin.Context) {
 		SearchPrefix: searchPrefix,
 	}
 
-	resp, err := api.Client.Request(time.Second*2, worker, genReq)
+	resp, err := api.client.Request(time.Second*2, worker, genReq)
 	fmt.Printf("response %#v\nerr %v\n", resp, err)
 	if gr, ok := resp.(*GenerationResponse); ok {
 		c.JSON(http.StatusOK, gin.H{

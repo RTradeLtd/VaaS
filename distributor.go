@@ -145,8 +145,8 @@ func InitializeDistributor(address string) error {
 		fmt.Println("shutdown complete")
 	}()
 
-	api := GenerateAPI(client)
-	go api.Run("127.0.0.1:6767")
+	api := InitializeAPI(client)
+	go api.Router.Run("127.0.0.1:6767")
 	listen, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
